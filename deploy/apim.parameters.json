@@ -1,0 +1,27 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2019-04-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "apiManagementServiceName": {
+      "value": "apim-realtime-dashboard"
+    },
+    "publisherEmail": {
+      "value": "admin@example.com"
+    },
+    "publisherName": {
+      "value": "Real-time Dashboard Admin"
+    },
+    "sku": {
+      "value": "BasicV2"
+    },
+    "apiName": {
+      "value": "real-time-dashboard-api"
+    },
+    "apiPath": {
+      "value": "dashboard"
+    },
+    "wsBackendUrl": {
+      "value": "wss://localhost:5001"
+    }
+  }
+} 

@@ -1,0 +1,128 @@
+openapi: 3.0.0
+info:
+  title: Real-time Dashboard API
+  description: API for sending and receiving real-time updates to the dashboard
+  version: 1.0.0
+  contact:
+    name: API Support
+servers:
+  - url: http://localhost:5001
+    description: Development server
+paths:
+  /api/updates:
+    get:
+      summary: Get all updates
+      description: Retrieves a list of all updates in reverse chronological order (newest first)
+      operationId: getUpdates
+      responses:
+        '200':
+          description: A list of updates
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Update'
+  /api/update:
+    post:
+      summary: Create a new update
+      description: Creates a new update and broadcasts it to all connected clients via WebSockets
+      operationId: createUpdate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - message
+              properties:
+                message:
+                  type: string
+                  description: The content of the update
+                  example: System is running normally
+                type:
+                  type: string
+                  description: The type of update
+                  enum: [info, success, warning, error]
+                  default: info
+                  example: info
+                title:
+                  type: string
+                  description: The title of the update
+                  default: Update
+                  example: System Status
+      responses:
+        '201':
+          description: Update created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  update:
+                    $ref: '#/components/schemas/Update'
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: Message is required
+  /health:
+    get:
+      summary: Health check
+      description: Returns the health status of the API
+      operationId: healthCheck
+      responses:
+        '200':
+          description: Health status
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  uptime:
+                    type: number
+                    description: Server uptime in seconds
+                    example: 3600
+                  timestamp:
+                    type: number
+                    description: Current timestamp
+                    example: 1625097600000
+components:
+  schemas:
+    Update:
+      type: object
+      properties:
+        id:
+          type: number
+          description: Unique identifier for the update
+          example: 1625097600000
+        message:
+          type: string
+          description: The content of the update
+          example: System is running normally
+        type:
+          type: string
+          description: The type of update
+          enum: [info, success, warning, error]
+          example: info
+        title:
+          type: string
+          description: The title of the update
+          example: System Status
+        timestamp:
+          type: string
+          format: date-time
+          description: The time when the update was created
+          example: 2023-07-01T12:00:00.000Z 

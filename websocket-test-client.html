@@ -1,0 +1,359 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>WebSocket Test Client</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+        .container {
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+        }
+        .card {
+            border: 1px solid #ddd;
+            border-radius: 5px;
+            padding: 15px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        }
+        .connection-status {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+        .status-indicator {
+            width: 12px;
+            height: 12px;
+            border-radius: 50%;
+            background-color: #f44336;
+        }
+        .status-indicator.connected {
+            background-color: #4caf50;
+        }
+        .message-list {
+            max-height: 300px;
+            overflow-y: auto;
+            border: 1px solid #eee;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .message {
+            margin-bottom: 10px;
+            padding: 10px;
+            border-radius: 5px;
+        }
+        .message.received {
+            background-color: #f1f1f1;
+        }
+        .message.sent {
+            background-color: #e3f2fd;
+        }
+        .message-form {
+            display: flex;
+            gap: 10px;
+        }
+        .message-form input {
+            flex: 1;
+            padding: 8px;
+            border: 1px solid #ddd;
+            border-radius: 4px;
+        }
+        .message-form button {
+            padding: 8px 16px;
+            background-color: #2196f3;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+        .message-form button:hover {
+            background-color: #0b7dda;
+        }
+        .update {
+            padding: 10px;
+            margin-bottom: 10px;
+            border-radius: 5px;
+        }
+        .update.info {
+            background-color: #e3f2fd;
+            border-left: 4px solid #2196f3;
+        }
+        .update.success {
+            background-color: #e8f5e9;
+            border-left: 4px solid #4caf50;
+        }
+        .update.warning {
+            background-color: #fff8e1;
+            border-left: 4px solid #ff9800;
+        }
+        .update.error {
+            background-color: #ffebee;
+            border-left: 4px solid #f44336;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>WebSocket Test Client</h1>
+        
+        <div class="card">
+            <h2>Connection</h2>
+            <div class="connection-status">
+                <div id="status-indicator" class="status-indicator"></div>
+                <span id="connection-status">Disconnected</span>
+            </div>
+            <div>
+                <label for="ws-url">WebSocket URL:</label>
+                <input type="text" id="ws-url" value="ws://localhost:5001/socket.io/" style="width: 300px;">
+                <button id="connect-btn">Connect</button>
+                <button id="disconnect-btn">Disconnect</button>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>Send Message</h2>
+            <div class="message-form">
+                <input type="text" id="message-input" placeholder="Enter a message">
+                <button id="send-btn">Send</button>
+            </div>
+            <div style="margin-top: 10px;">
+                <button id="send-heartbeat-btn">Send Heartbeat</button>
+                <button id="create-update-btn">Create Update</button>
+            </div>
+        </div>
+        
+        <div class="card">
+            <h2>Messages</h2>
+            <div id="message-list" class="message-list"></div>
+        </div>
+        
+        <div class="card">
+            <h2>Updates</h2>
+            <div id="update-list"></div>
+        </div>
+    </div>
+
+    <script>
+        // DOM Elements
+        const statusIndicator = document.getElementById('status-indicator');
+        const connectionStatus = document.getElementById('connection-status');
+        const wsUrlInput = document.getElementById('ws-url');
+        const connectBtn = document.getElementById('connect-btn');
+        const disconnectBtn = document.getElementById('disconnect-btn');
+        const messageInput = document.getElementById('message-input');
+        const sendBtn = document.getElementById('send-btn');
+        const sendHeartbeatBtn = document.getElementById('send-heartbeat-btn');
+        const createUpdateBtn = document.getElementById('create-update-btn');
+        const messageList = document.getElementById('message-list');
+        const updateList = document.getElementById('update-list');
+        
+        // WebSocket connection
+        let socket = null;
+        let heartbeatInterval = null;
+        let updates = [];
+        
+        // Connect to WebSocket server
+        function connect() {
+            const url = wsUrlInput.value;
+            
+            try {
+                socket = new WebSocket(url);
+                
+                // Connection opened
+                socket.addEventListener('open', (event) => {
+                    console.log('Connected to WebSocket server');
+                    statusIndicator.classList.add('connected');
+                    connectionStatus.textContent = 'Connected';
+                    addMessage('System', 'Connected to WebSocket server', 'received');
+                    
+                    // Start heartbeat
+                    startHeartbeat();
+                });
+                
+                // Listen for messages
+                socket.addEventListener('message', (event) => {
+                    console.log('Message from server:', event.data);
+                    
+                    try {
+                        const data = JSON.parse(event.data);
+                        addMessage('Server', JSON.stringify(data, null, 2), 'received');
+                        
+                        // Handle different message types
+                        if (data.type === 'initial-updates') {
+                            updates = data.data || [];
+                            updateUpdatesList();
+                        } else if (data.type === 'new-update') {
+                            updates.unshift(data.data);
+                            updateUpdatesList();
+                        }
+                    } catch (error) {
+                        console.error('Error parsing message:', error);
+                        addMessage('Server', event.data, 'received');
+                    }
+                });
+                
+                // Connection closed
+                socket.addEventListener('close', (event) => {
+                    console.log('Disconnected from WebSocket server:', event.code, event.reason);
+                    statusIndicator.classList.remove('connected');
+                    connectionStatus.textContent = 'Disconnected';
+                    addMessage('System', `Disconnected from WebSocket server: ${event.code} ${event.reason}`, 'received');
+                    
+                    // Clear heartbeat
+                    if (heartbeatInterval) {
+                        clearInterval(heartbeatInterval);
+                        heartbeatInterval = null;
+                    }
+                });
+                
+                // Connection error
+                socket.addEventListener('error', (error) => {
+                    console.error('WebSocket error:', error);
+                    addMessage('System', `WebSocket error: ${error.message || 'Unknown error'}`, 'received');
+                });
+            } catch (error) {
+                console.error('Error creating WebSocket:', error);
+                addMessage('System', `Error creating WebSocket: ${error.message}`, 'received');
+            }
+        }
+        
+        // Disconnect from WebSocket server
+        function disconnect() {
+            if (socket) {
+                socket.close();
+                socket = null;
+            }
+            
+            // Clear heartbeat
+            if (heartbeatInterval) {
+                clearInterval(heartbeatInterval);
+                heartbeatInterval = null;
+            }
+        }
+        
+        // Start heartbeat
+        function startHeartbeat() {
+            // Clear existing interval if any
+            if (heartbeatInterval) {
+                clearInterval(heartbeatInterval);
+            }
+            
+            // Send a heartbeat every 30 seconds
+            heartbeatInterval = setInterval(() => {
+                sendHeartbeat();
+            }, 30000);
+        }
+        
+        // Send heartbeat
+        function sendHeartbeat() {
+            if (socket && socket.readyState === WebSocket.OPEN) {
+                const message = {
+                    type: 'heartbeat',
+                    timestamp: Date.now()
+                };
+                
+                socket.send(JSON.stringify(message));
+                addMessage('Client', `Sent heartbeat: ${JSON.stringify(message)}`, 'sent');
+            }
+        }
+        
+        // Send message
+        function sendMessage() {
+            if (socket && socket.readyState === WebSocket.OPEN) {
+                const message = messageInput.value.trim();
+                
+                if (message) {
+                    const data = {
+                        type: 'ping',
+                        message: message,
+                        timestamp: Date.now()
+                    };
+                    
+                    socket.send(JSON.stringify(data));
+                    addMessage('Client', `Sent: ${JSON.stringify(data)}`, 'sent');
+                    messageInput.value = '';
+                }
+            } else {
+                addMessage('System', 'Cannot send message: WebSocket is not connected', 'received');
+            }
+        }
+        
+        // Create update via API
+        async function createUpdate() {
+            try {
+                const message = messageInput.value.trim() || 'Test update';
+                const apiUrl = wsUrlInput.value.replace('ws://', 'http://').replace('wss://', 'https://').replace('/socket.io/', '');
+                
+                const response = await fetch(`${apiUrl}/api/update`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        message: message,
+                        type: 'info',
+                        title: 'Test Update'
+                    })
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                
+                const data = await response.json();
+                addMessage('API', `Created update: ${JSON.stringify(data)}`, 'sent');
+                messageInput.value = '';
+            } catch (error) {
+                console.error('Error creating update:', error);
+                addMessage('System', `Error creating update: ${error.message}`, 'received');
+            }
+        }
+        
+        // Add message to message list
+        function addMessage(sender, message, type) {
+            const messageElement = document.createElement('div');
+            messageElement.classList.add('message', type);
+            messageElement.innerHTML = `<strong>${sender}:</strong> <pre>${message}</pre>`;
+            messageList.appendChild(messageElement);
+            messageList.scrollTop = messageList.scrollHeight;
+        }
+        
+        // Update the updates list
+        function updateUpdatesList() {
+            updateList.innerHTML = '';
+            
+            updates.slice(0, 10).forEach(update => {
+                const updateElement = document.createElement('div');
+                updateElement.classList.add('update', update.type);
+                updateElement.innerHTML = `
+                    <strong>${update.title}</strong> (${new Date(update.timestamp).toLocaleTimeString()})
+                    <p>${update.message}</p>
+                `;
+                updateList.appendChild(updateElement);
+            });
+        }
+        
+        // Event listeners
+        connectBtn.addEventListener('click', connect);
+        disconnectBtn.addEventListener('click', disconnect);
+        sendBtn.addEventListener('click', sendMessage);
+        sendHeartbeatBtn.addEventListener('click', sendHeartbeat);
+        createUpdateBtn.addEventListener('click', createUpdate);
+        
+        messageInput.addEventListener('keypress', (event) => {
+            if (event.key === 'Enter') {
+                sendMessage();
+            }
+        });
+        
+        // Connect on page load
+        connect();
+    </script>
+</body>
+</html> 

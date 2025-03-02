@@ -1,0 +1,60 @@
+### Variables
+@baseUrl = https://apim-realtime-dashboard.azure-api.net/dashboard
+# @baseUrl = http://localhost:5001
+@contentType = application/json
+
+### Health Check
+GET {{baseUrl}}/health
+
+### Get All Updates
+GET {{baseUrl}}/api/updates
+
+### Send Info Update
+POST {{baseUrl}}/api/update
+Content-Type: {{contentType}}
+
+{
+  "message": "System is running normally",
+  "type": "info",
+  "title": "System Status"
+}
+
+### Send Success Update
+POST {{baseUrl}}/api/update
+Content-Type: {{contentType}}
+
+{
+  "message": "Database backup completed successfully",
+  "type": "success",
+  "title": "Backup Complete"
+}
+
+### Send Warning Update
+POST {{baseUrl}}/api/update
+Content-Type: {{contentType}}
+
+{
+  "message": "CPU usage is above 80%",
+  "type": "warning",
+  "title": "High CPU Usage"
+}
+
+### Send Error Update
+POST {{baseUrl}}/api/update
+Content-Type: {{contentType}}
+
+{
+  "message": "Failed to connect to database server",
+  "type": "error",
+  "title": "Connection Error"
+}
+
+### Get OpenAPI Specification (YAML)
+GET {{baseUrl}}/openapi.yaml
+
+### Get OpenAPI Specification (JSON)
+GET {{baseUrl}}/api-docs/swagger.json
+
+### Access API Documentation
+# Open this URL in your browser:
+# {{baseUrl}}/api-docs 

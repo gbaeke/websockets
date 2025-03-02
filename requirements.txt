@@ -1,0 +1,7 @@
+websockets==11.0.3
+aiohttp==3.9.1
+fastapi==0.104.1
+uvicorn==0.23.2
+pydantic
+python-multipart==0.0.6
+requests==2.31.0 
