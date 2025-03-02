@@ -38,6 +38,9 @@ param apiPath string = 'dashboard'
 @description('The content of the OpenAPI specification.')
 param apiSpecificationContent string
 
+@description('The backend URL for the regular HTTP API.')
+param httpBackendUrl string = 'https://localhost:5000'
+
 @description('The backend URL for the WebSocket API.')
 param wsBackendUrl string = 'wss://localhost:5001'
 
@@ -66,7 +69,9 @@ resource api 'Microsoft.ApiManagement/service/apis@2023-05-01-preview' = {
     protocols: [
       'https'
     ]
+    subscriptionRequired: false
     type: 'http'
+    serviceUrl: httpBackendUrl
   }
 }
 

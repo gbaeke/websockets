@@ -2,6 +2,36 @@
 
 This is a Python implementation of a WebSocket server that can be used to test Azure API Management (APIM) WebSocket capabilities. The server provides both REST API endpoints and WebSocket communication.
 
+## Quickstart
+
+- Clone the repository
+- Create a virtual environment and install dependencies
+- Run the client and server with `npm run dev-full`
+- Start ngrok with `ngrok http 5001` (install ngrok first)
+
+This starts the client and server locally. The server is available via the ngrok URL to the outside world.
+
+Now deploy APIM. You need an Azure subscription.
+
+- Go the the `deploy' folder
+- Modify apim.parameters.json:
+  - Change the wsBackendUrl to `wss://<ngrok-url>/socket.io/`
+  - Change the httpBackendUrl to `https://<ngrok-url>`
+- Run `./deploy-apim.sh`
+
+Ensure that `client/src/App.js` is configured to use the APIM instance.
+
+```javascript
+// API Management endpoints
+const APIM_HTTP_ENDPOINT = 'https://apim-realtime-dashboard.azure-api.net/dashboard';
+const APIM_WS_ENDPOINT = 'wss://apim-realtime-dashboard.azure-api.net/dashboard-ws';
+
+const useApim = true;
+```
+Replace the https and wss endpoints with the APIM endpoint.
+
+If you want to test the endpoints with `api-requests.http` then set the @baseUrl to the same APIM endpoint for the REST API.
+
 ## Features
 
 - WebSocket server that handles client connections

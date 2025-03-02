@@ -20,8 +20,11 @@
     "apiPath": {
       "value": "dashboard"
     },
+    "httpBackendUrl": {
+      "value": "https://7ba7-2a02-1812-c15-2300-39e4-487b-f302-cb7f.ngrok-free.app"
+    },
     "wsBackendUrl": {
-      "value": "wss://localhost:5001"
+      "value": "wss://7ba7-2a02-1812-c15-2300-39e4-487b-f302-cb7f.ngrok-free.app/socket.io/"
     }
   }
 } 

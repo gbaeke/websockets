@@ -110,7 +110,7 @@
             </div>
             <div>
                 <label for="ws-url">WebSocket URL:</label>
-                <input type="text" id="ws-url" value="ws://localhost:5001/socket.io/" style="width: 300px;">
+                <input type="text" id="ws-url" value="ws://localhost:5001/ws" style="width: 300px;">
                 <button id="connect-btn">Connect</button>
                 <button id="disconnect-btn">Disconnect</button>
             </div>
@@ -185,12 +185,18 @@
                         addMessage('Server', JSON.stringify(data, null, 2), 'received');
                         
                         // Handle different message types
-                        if (data.type === 'initial-updates') {
+                        if (data.type === 'connection-test') {
+                            console.log('Connection test message received');
+                            // This is just a test message, no action needed
+                        } else if (data.type === 'initial-updates') {
                             updates = data.data || [];
                             updateUpdatesList();
                         } else if (data.type === 'new-update') {
                             updates.unshift(data.data);
                             updateUpdatesList();
+                        } else if (data.type === 'heartbeat-response') {
+                            console.log('Heartbeat response received');
+                            // No action needed for heartbeat response
                         }
                     } catch (error) {
                         console.error('Error parsing message:', error);
@@ -203,7 +209,9 @@
                     console.log('Disconnected from WebSocket server:', event.code, event.reason);
                     statusIndicator.classList.remove('connected');
                     connectionStatus.textContent = 'Disconnected';
-                    addMessage('System', `Disconnected from WebSocket server: ${event.code} ${event.reason}`, 'received');
+                    
+                    // Only log disconnection to console, don't show in UI
+                    // addMessage('System', `Disconnected from WebSocket server: ${event.code} ${event.reason}`, 'received');
                     
                     // Clear heartbeat
                     if (heartbeatInterval) {
@@ -215,7 +223,8 @@
                 // Connection error
                 socket.addEventListener('error', (error) => {
                     console.error('WebSocket error:', error);
-                    addMessage('System', `WebSocket error: ${error.message || 'Unknown error'}`, 'received');
+                    // Only log error to console, don't show in UI
+                    // addMessage('System', `WebSocket error: ${error.message || 'Unknown error'}`, 'received');
                 });
             } catch (error) {
                 console.error('Error creating WebSocket:', error);

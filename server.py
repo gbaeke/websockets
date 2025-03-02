@@ -31,10 +31,11 @@ app = FastAPI(
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["*"],  # Allow all origins
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["*"],  # Allow all methods
+    allow_headers=["*"],  # Allow all headers
+    expose_headers=["*"],  # Expose all headers
 )
 
 # Serve OpenAPI documentation
@@ -77,9 +78,13 @@ class ConnectionManager:
         self.active_connections: Set[WebSocket] = set()
 
     async def connect(self, websocket: WebSocket):
-        await websocket.accept()
-        self.active_connections.add(websocket)
-        logger.info(f"New client connected: {id(websocket)}")
+        try:
+            await websocket.accept()
+            self.active_connections.add(websocket)
+            logger.info(f"New client connected: {id(websocket)}")
+        except Exception as e:
+            logger.error(f"Error accepting WebSocket connection: {e}")
+            raise
 
     def disconnect(self, websocket: WebSocket):
         if websocket in self.active_connections:
@@ -98,8 +103,7 @@ class ConnectionManager:
         for connection in self.active_connections:
             try:
                 await connection.send_text(message)
-            except Exception as e:
-                logger.error(f"Error sending message to client: {e}")
+            except Exception:
                 disconnected_clients.add(connection)
         
         # Remove disconnected clients
@@ -117,15 +121,46 @@ async def handle_socketio_get(request: Request):
 @app.websocket("/socket.io/")
 async def websocket_endpoint(websocket: WebSocket):
     try:
+        logger.info(f"New WebSocket connection from {websocket.client}")
         await manager.connect(websocket)
         
         # Send existing updates to newly connected client
         try:
-            await websocket.send_json({"type": "initial-updates", "data": updates})
+            # First, send a simple test message to verify the connection
+            await websocket.send_json({"type": "connection-test", "status": "ok"})
+            
+            # Then send the actual updates
+            if updates:
+                # Use manual JSON serialization with error handling
+                try:
+                    # Limit to 10 most recent updates to avoid large payloads
+                    recent_updates = updates[:10]
+                    json_data = json.dumps({"type": "initial-updates", "data": recent_updates})
+                    await websocket.send_text(json_data)
+                except Exception as e:
+                    logger.error(f"JSON serialization error: {e}")
+                    # Try sending a simplified version
+                    simple_updates = []
+                    for update in updates[:10]:
+                        try:
+                            # Create a simplified version of each update
+                            simple_update = {
+                                "id": update.get("id", 0),
+                                "message": str(update.get("message", "")),
+                                "type": str(update.get("type", "info")),
+                                "title": str(update.get("title", "Update")),
+                                "timestamp": str(update.get("timestamp", datetime.now().isoformat()))
+                            }
+                            simple_updates.append(simple_update)
+                        except Exception:
+                            pass
+                    
+                    await websocket.send_json({"type": "initial-updates", "data": simple_updates})
+            else:
+                await websocket.send_json({"type": "initial-updates", "data": []})
         except Exception as e:
             logger.error(f"Error sending initial updates: {e}")
-            manager.disconnect(websocket)
-            return
+            # Don't disconnect, try to continue with the connection
         
         try:
             while True:
@@ -135,13 +170,12 @@ async def websocket_endpoint(websocket: WebSocket):
                     event_type = json_data.get("type")
                     
                     if event_type == "heartbeat":
-                        logger.info(f"Heartbeat received from {id(websocket)}, timestamp: {json_data.get('timestamp')}")
                         await websocket.send_json({
                             "type": "heartbeat-response", 
                             "data": {"timestamp": int(time.time() * 1000)}
                         })
                 except json.JSONDecodeError:
-                    logger.warning(f"Received non-JSON message: {data}")
+                    pass
                     
         except WebSocketDisconnect:
             manager.disconnect(websocket)
@@ -179,7 +213,8 @@ async def create_update(update_data: UpdateBase):
 
 @app.get("/api/updates", response_model=List[Update])
 async def get_updates():
-    return updates
+    # Return only the 20 most recent updates to avoid large payloads
+    return updates[:20]
 
 @app.get("/health", response_model=HealthResponse)
 async def health_check():
@@ -192,7 +227,18 @@ async def health_check():
 # Start server function
 def start_server(port: int = 5001):
     try:
-        uvicorn.run(app, host="0.0.0.0", port=port)
+        # Configure Uvicorn with WebSocket settings
+        uvicorn.run(
+            app, 
+            host="0.0.0.0", 
+            port=port,
+            log_level="info",
+            # Increase timeout for WebSocket connections
+            timeout_keep_alive=120,
+            # Enable WebSocket ping/pong for connection health checks
+            ws_ping_interval=20.0,
+            ws_ping_timeout=30.0,
+        )
     except OSError as e:
         if "Address already in use" in str(e):
             logger.warning(f"Port {port} is already in use, trying port {port + 1}")

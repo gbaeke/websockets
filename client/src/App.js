@@ -37,7 +37,7 @@ const getWebSocketUrl = () => {
   
   // For APIM, don't add /socket.io/ suffix as it's handled by APIM routing
   // For local development, keep the /socket.io/ suffix as our server expects it
-  return useApim ? APIM_WS_ENDPOINT : `${LOCAL_WS_ENDPOINT}/socket.io/`;
+  return useApim ? APIM_WS_ENDPOINT : `${LOCAL_WS_ENDPOINT}/ws`;
 };
 
 // Initialize HTTP API URL
@@ -51,6 +51,7 @@ function App() {
   const [updates, setUpdates] = useState([]);
   const [isConnected, setIsConnected] = useState(false);
   const [transportType, setTransportType] = useState('websocket');
+  const [hasConnectedBefore, setHasConnectedBefore] = useState(false);
   
   // WebSocket reference
   const socketRef = useRef(null);
@@ -79,15 +80,21 @@ function App() {
     }
 
     // Create new WebSocket connection
+    console.log('Creating new WebSocket connection to:', wsUrl);
     const socket = new WebSocket(wsUrl);
     socketRef.current = socket;
 
     // Connection opened
     socket.addEventListener('open', (event) => {
-      console.log('Connected to WebSocket server');
+      console.log('Connected to WebSocket server', event);
       setIsConnected(true);
       setTransportType('websocket');
-      toast.success('Connected to server!');
+      
+      // Only show toast on first successful connection
+      if (!hasConnectedBefore) {
+        toast.success('Connected to server!');
+        setHasConnectedBefore(true);
+      }
       
       // Start heartbeat
       startHeartbeat();
@@ -95,13 +102,19 @@ function App() {
 
     // Listen for messages
     socket.addEventListener('message', (event) => {
+      console.log('Message received from server:', event.data);
       try {
         const data = JSON.parse(event.data);
-        console.log('Message from server:', data);
+        console.log('Parsed message from server:', data);
         
-        if (data.type === 'initial-updates') {
+        if (data.type === 'connection-test') {
+          console.log('Connection test message received:', data);
+          // This is just a test message, no action needed
+        } else if (data.type === 'initial-updates') {
+          console.log('Received initial updates:', data.data ? data.data.length : 0, 'updates');
           setUpdates(data.data || []);
         } else if (data.type === 'new-update') {
+          console.log('Received new update:', data.data);
           setUpdates((prevUpdates) => [data.data, ...prevUpdates]);
           
           // Show toast notification
@@ -115,17 +128,24 @@ function App() {
             pauseOnHover: true,
             draggable: true,
           });
+        } else if (data.type === 'heartbeat-response') {
+          console.log('Heartbeat response received:', data);
+          // No action needed for heartbeat response
+        } else {
+          console.log('Received unknown message type:', data.type);
         }
       } catch (error) {
-        console.error('Error parsing message:', error);
+        console.error('Error parsing message:', error, 'Raw data:', event.data);
       }
     });
 
     // Connection closed
     socket.addEventListener('close', (event) => {
-      console.log('Disconnected from WebSocket server:', event.code, event.reason);
+      console.log('Disconnected from WebSocket server:', event.code, event.reason, event);
       setIsConnected(false);
-      toast.error('Disconnected from server!');
+      
+      // Don't show toast error for disconnection
+      // toast.error(`Disconnected from server! Code: ${event.code}`);
       
       // Clear heartbeat
       if (heartbeatIntervalRef.current) {
@@ -145,7 +165,8 @@ function App() {
     // Connection error
     socket.addEventListener('error', (error) => {
       console.error('WebSocket error:', error);
-      toast.error(`Connection error: ${error.message || 'Unknown error'}`);
+      // Don't show toast error for connection errors
+      // toast.error(`Connection error: ${error.message || 'Unknown error'}`);
     });
   };
 
